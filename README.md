@@ -23,6 +23,7 @@ Notes on applied AI engineering, from first principles up to production systems.
 | --- | --- |
 | `ai/foundation/` | Core concepts: model families, tokenisation, embeddings, context windows, prompting, evaluation, and the vocabulary needed to read the rest of the field. |
 | `ai/foundation/agentic-ai/` | Agentic systems: the reason/act/observe loop, agent anatomy, design patterns (ReAct, plan-and-execute, reflection, multi-agent, human-in-the-loop), failure modes, and the framework landscape. |
+| `ai/foundation/agentic-ai/hands-on/` | Runnable companions to the notes above, one numbered subfolder per exercise (`001-pydantic-ai/`, and so on). Code that is meant to be executed lives here rather than inline in a note. |
 | `ai/foundation/llm/` | Large language models themselves: architecture, training and fine-tuning, inference behaviour, sampling parameters, context handling, and evaluation. |
 
 ### `backend/`
