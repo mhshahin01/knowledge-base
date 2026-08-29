@@ -26,6 +26,15 @@ Notes on applied AI engineering, from first principles up to production systems.
 | `ai/foundation/agentic-ai/hands-on/` | Runnable companions to the notes above, one numbered subfolder per exercise (`001-pydantic-ai/`, and so on). Code that is meant to be executed lives here rather than inline in a note. |
 | `ai/foundation/llm/` | Large language models themselves: architecture, training and fine-tuning, inference behaviour, sampling parameters, context handling, and evaluation. |
 
+**Notes in place**
+
+| Note | What it covers |
+| --- | --- |
+| [`agentic-ai/001-agentic-ai-basics.md`](ai/foundation/agentic-ai/001-agentic-ai-basics.md) | What agents are, the reason/act/observe loop, agent anatomy, the core design patterns, failure modes, and the 2026 framework landscape. The hands-on exercises below are its companions. |
+| [`hands-on/001-pydantic-ai/001-mapping-intent/`](ai/foundation/agentic-ai/hands-on/001-pydantic-ai/001-mapping-intent/) | Intent mapping via tool calls, with the scope guard *asked for* in the system prompt. Demonstrates the two ways that guard fails. Chat UI included. |
+| [`hands-on/001-pydantic-ai/002-mapping-intent-enforced/`](ai/foundation/agentic-ai/hands-on/001-pydantic-ai/002-mapping-intent-enforced/) | The same capabilities with the guard *enforced in code*: typed intents validated by Pydantic, a single-intent and a multi-intent router, and code-owned replies the model cannot write. |
+| [`hands-on/001-pydantic-ai/002-mapping-intent-enforced/python-basics.md`](ai/foundation/agentic-ai/hands-on/001-pydantic-ai/002-mapping-intent-enforced/python-basics.md) | Language companion to the exercise above: every Python feature its two agent files use, explained from scratch. No AI content. |
+
 ### `backend/`
 
 Language- and framework-level engineering practice: how to actually build the service once the
@@ -35,7 +44,7 @@ design is settled.
 | --- | --- |
 | `backend/java/language/` | The Java language and platform itself: records, sealed types, pattern matching, virtual threads, the memory model, collections, and JVM behaviour. |
 | `backend/java/spring-boot/` | Spring Boot application concerns: dependency injection, configuration, data access, transactions, validation, security, testing, and observability wiring. |
-| `backend/python/` | Python for backend work: language features, typing, packaging and environments, async, and the web/service frameworks around it. |
+| `backend/python/` | Python for backend work: language features, typing, packaging and environments, async, and the web/service frameworks around it. Still a placeholder: the one Python language note written so far sits with the code it was extracted from, at [`python-basics.md`](ai/foundation/agentic-ai/hands-on/001-pydantic-ai/002-mapping-intent-enforced/python-basics.md). |
 
 ### `system-design/`
 
