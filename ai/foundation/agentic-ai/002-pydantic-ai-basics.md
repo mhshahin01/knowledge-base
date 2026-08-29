@@ -5,7 +5,7 @@
 
 ## Tutorial Overview
 
-This tutorial teaches **Pydantic AI** from zero, assuming only that you know Python. It covers the library itself (agents, instructions, structured output, tools, dependency injection, dynamic instructions, retries, and run inspection) and attaches each idea to a running example: the Admin Office amenities agent of our Round 1 project, built twice (once with structured output, once with tools) so the trade-off between the two modes becomes concrete.
+This tutorial teaches **Pydantic AI** from zero, assuming only that you know Python. It covers the library itself (agents, instructions, structured output, tools, dependency injection, dynamic instructions, retries, and run inspection) and attaches each idea to a running example: the Admin Office amenities agent of a residential compound, built twice (once with structured output, once with tools) so the trade-off between the two modes becomes concrete.
 
 After completing this tutorial, you will be able to:
 
@@ -370,7 +370,7 @@ print(result.output)
 
 **What happened:** the model's job became *classification*: choose one of the offered shapes and fill it in. The `Literal` field acts as a tag, a discriminator, telling the shapes apart. The union forces the pick to be one of your known shapes; the model cannot invent a seventh.
 
-Giving the model an explicit `Unknown` escape hatch is a deliberate design move: without it, an off-topic message gets squeezed into a wrong shape instead of a clean "I didn't understand". Our project uses exactly this pattern for intents: `Intent = ListAmenities | AddAmenity | BookingsInRange | BookingsByUnit | BookingsToday | Clarify`, each tagged with a `Literal` intent name.
+Giving the model an explicit `Unknown` escape hatch is a deliberate design move: without it, an off-topic message gets squeezed into a wrong shape instead of a clean "I didn't understand". The amenities agent uses exactly this pattern for intents: `Intent = ListAmenities | AddAmenity | BookingsInRange | BookingsByUnit | BookingsToday | Clarify`, each tagged with a `Literal` intent name.
 
 *Use case fit:* intent detection, routing, triage: any "figure out what the user wants, then my code acts on it" feature.
 
@@ -859,7 +859,7 @@ The docs' finer retry splits (`retries={'output': 3}`, per-run overrides) and th
 **Hands-on project suggestions:**
 
 1. **Level climber**: one script per Part 1 section, each printing `all_messages()` once. Concepts: Sections 3–13.
-2. **Both-modes amenities agent**: the same five services behind a dispatcher and behind tools, switched by `AGENT_MODE`. Concepts: Sections 6–12, the core of Round 1.
+2. **Both-modes amenities agent**: the same five services behind a dispatcher and behind tools, switched by `AGENT_MODE`. Concepts: Sections 6–12, the core of this tutorial.
 3. **Price check**: run the Section 15 eval table against both modes, record `usage()` and wall-clock, write up the comparison. Concepts: Sections 14–16.
 
 **Best practices:**
