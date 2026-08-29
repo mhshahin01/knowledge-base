@@ -7,9 +7,9 @@ The goal is **retrieval, not collection**. Every note should answer a question I
 in enough depth that I do not need to re-derive the answer from scratch six months later. Anything
 that is only a link dump belongs in a bookmark manager, not here.
 
-> **Status:** the taxonomy below is in place and the notes are being written into it. Directories
-> marked _empty_ are placeholders held by `.gitkeep`; they define where a topic will live, not that
-> content exists yet.
+> **Status:** the taxonomy below is in place and notes are landing in it. Directories still held by a
+> `.gitkeep` marker are placeholders: they define where a topic will live, not that content exists
+> yet. Sections with notes in them are listed under their entry in the index.
 
 ---
 
@@ -22,6 +22,7 @@ Notes on applied AI engineering, from first principles up to production systems.
 | Path | Scope |
 | --- | --- |
 | `ai/foundation/` | Core concepts: model families, tokenisation, embeddings, context windows, prompting, evaluation, and the vocabulary needed to read the rest of the field. |
+| `ai/foundation/agentic ai/` | Agentic systems: the reason/act/observe loop, agent anatomy, design patterns (ReAct, plan-and-execute, reflection, multi-agent, human-in-the-loop), failure modes, and the framework landscape. |
 
 ### `backend/`
 
@@ -104,5 +105,14 @@ These keep the base searchable as it grows. They are deliberately minimal.
 
 ## Contributing
 
-This is a personal knowledge base rather than a community project, so there is no PR process.
-Notes are written on a short-lived branch and merged to `main`.
+This is a personal knowledge base rather than a community project, so there is no PR process
+and no branching model. Notes are committed straight to `main` and pushed.
+
+```bash
+git add -A
+git commit -m "docs: add note on <topic>"
+git push
+```
+
+`main` is therefore always the working copy. Nothing here is release-gated, so the cost of a
+half-finished note on `main` is lower than the friction of a branch nobody reviews.
