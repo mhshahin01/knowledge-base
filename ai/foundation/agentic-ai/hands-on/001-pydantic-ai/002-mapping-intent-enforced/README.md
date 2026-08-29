@@ -59,6 +59,66 @@ anything but one of the three types.
 
 ---
 
+## What `router` is
+
+`router` is an ordinary `pydantic_ai.Agent`, the same class as `agent` in 001. The name is mine, not
+a framework concept: there is no `Router` type in Pydantic AI. It is called that because of the job
+it does, which is decide *where* a request goes rather than *what to say* about it.
+
+```python
+router = Agent(
+    MODEL,
+    output_type=Intent,
+    system_prompt="Classify the user's request into exactly one intent. "
+                  "If it is not addition or word counting, return out_of_scope.",
+)
+```
+
+Two things make it a router rather than a chat agent, and both are visible in that call:
+
+**1. `output_type=Intent` replaces free text with a schema.** Pydantic AI turns the union into an
+*output tool*: the model is handed a JSON Schema and must produce a value matching it. Asking the
+agent what it expects shows exactly what the model sees:
+
+```python
+router.output_json_schema()
+# {'anyOf': [ {...AddNumbers...}, {...WordCount...}, {...OutOfScope...} ]}
+```
+
+Each variant carries its `kind` as a `const`, its fields as `required`, and **its class docstring as
+the schema `description`**:
+
+```text
+AddNumbers  -> "The user wants two numbers added."
+WordCount   -> "The user wants the words in a piece of text counted."
+OutOfScope  -> "The request matches no supported intent."
+```
+
+Those docstrings are not documentation. They are how the model decides which variant a prompt
+belongs to, exactly as tool docstrings do the routing in 001. If classification goes wrong, rewrite
+them before you touch anything else.
+
+**2. It has no tools at all.** In 001, `add_numbers` and `word_count` are registered with
+`@agent.tool_plain`, so the model calls them. Here they are plain functions the model has never
+heard of, invoked by `handle()` after classification. Confirmed on the live object:
+
+```python
+isinstance(router, Agent)   # True, it is just an Agent
+# function tools registered: NONE
+```
+
+So `router` is the one and only place the model appears in this program. Everything after
+`router.run_sync(prompt).output` is ordinary Python:
+
+```python
+intent = router.run_sync(prompt).output   # <- the model's entire contribution
+```
+
+That single line is the whole reason the guard holds. The model's influence ends when it returns a
+validated object, and `handle()` takes over from there.
+
+---
+
 ## How a request flows
 
 The model's only job is to pick one of three shapes. Validation happens before any code runs, and
