@@ -8,7 +8,7 @@ hidden behind Agent, so there is less to get wrong and less to see.
 builds by hand. The model receives an identical request either way. What differs
 is bookkeeping: `instructions` is read from the agent on every run, while a
 `system_prompt` would be stored in the message history and replayed. See section
-5.1 of ../../../002-pydantic-ai-basics.md.
+5.1 of ../../../tutorials/002-pydantic-ai-basics.md.
 
 Run:  python wrapper-pydantic.py
 """

@@ -166,7 +166,7 @@ Three things to notice in the raw version, because they are the three things the
 
 1. **`messages` is a list, not a string.** Even for one message you build a list of role/content
    dicts. That list is the conversation, and it is why multi-turn chat is "append and resend"
-   (Section 4 of [`002-pydantic-ai-basics.md`](../../../002-pydantic-ai-basics.md)).
+   (Section 4 of [`002-pydantic-ai-basics.md`](../../../tutorials/002-pydantic-ai-basics.md)).
 2. **`choices` is a list too.** The API can return several candidate replies; you almost always want
    `[0]`. The index is not optional and it is easy to forget why it is there.
 3. **The key is passed explicitly.** `OpenAI()` reads `OPENAI_API_KEY` from the environment on its
@@ -206,7 +206,7 @@ wire, not a different service.
 
 `Agent(..., instructions=...)` looks like a framework concept. It is not. It becomes the exact
 `{"role": "system", ...}` entry that `wrapper-openai.py` writes out by hand. Same wire, same three
-roles (Section 4 of [`002-pydantic-ai-basics.md`](../../../002-pydantic-ai-basics.md)):
+roles (Section 4 of [`002-pydantic-ai-basics.md`](../../../tutorials/002-pydantic-ai-basics.md)):
 
 ```python
 # wrapper-openai.py, explicit

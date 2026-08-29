@@ -9,7 +9,7 @@ write an intent classifier, a keyword matcher, or a routing table. You describe 
 the model decides which one the user meant.
 
 This is the hands-on companion to
-[`../../../001-agentic-ai-basics.md`](../../../001-agentic-ai-basics.md), specifically the sections on
+[`../../../tutorials/001-agentic-ai-basics.md`](../../../tutorials/001-agentic-ai-basics.md), specifically the sections on
 the core agent loop, agent anatomy, and the "same problem at all three levels" comparison of
 intent recognition.
 

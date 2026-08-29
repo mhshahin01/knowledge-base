@@ -1,7 +1,7 @@
 # Tutorial Template
 
 > Last updated: 2026-08-29 | Applies to: every tutorial-style note in this knowledge base
-> Source: extracted from `ai/foundation/agentic-ai/001-agentic-ai-basics.md`
+> Source: extracted from `ai/foundation/agentic-ai/tutorials/001-agentic-ai-basics.md`
 
 The structure below is the house style for long-form tutorials here. It was extracted from the
 agentic AI tutorial, which is the reference implementation: when this document and that file
