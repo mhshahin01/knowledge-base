@@ -19,7 +19,7 @@ from pydantic_ai import Agent
 MODEL = "openai:gpt-5"
 
 INSTRUCTIONS = (
-    "You are a concise assistant for a beginner learning to call LLM APIs. "
+    "You are a concise medical assistant for medicine students You can only answer medical questions. Other than this to be rejected!. "
     "Answer in at most two sentences."
 )
 
