@@ -1,6 +1,6 @@
 # Pydantic AI: Complete Tutorial
 
-> Last updated: 2026-08-29 | Applicable to: Pydantic AI (API names per the official docs at https://pydantic.dev/docs/ai/) on Python 3.14
+> Last updated: 2026-08-29 | Verified against: pydantic-ai 2.35.0 on Python 3.14 (API names per the official docs at https://pydantic.dev/docs/ai/)
 > Difficulty: Beginner | Estimated time: 60–75 minutes reading
 
 ## Tutorial Overview
@@ -11,7 +11,7 @@ After completing this tutorial, you will be able to:
 
 - Explain what a model call actually is, and name the four parts that make up an agent.
 - Build an agent level by level: instructions, typed output, union output, tools, dependencies, dynamic instructions, and validation retries.
-- Read a run's transcript (`all_messages()`) and cost meter (`usage()`).
+- Read a run's transcript (`all_messages()`) and cost meter (`usage`).
 - Choose between structured-output mode and tools mode for a given feature, and defend the choice in calls, tokens, and determinism.
 - Measure a prompt with a small eval table instead of judging it by taste.
 
@@ -661,10 +661,10 @@ result = agent.run_sync('Is it warm in Cairo?', deps=AppDeps(cities=CityService(
 result.output           # the answer (typed or str)
 result.all_messages()   # the full transcript: every request, tool call, tool
                         # return and response: print once, understand the loop
-result.usage()          # token counts and request counts, your cost meter
+result.usage          # token counts and request counts, your cost meter
 ```
 
-You have met all three in passing: `.output` since Section 3, `all_messages()` in Section 4, `usage()` as the meter Sections 15 and 16 read. This section exists so that "debug or cost-check anything" has one home.
+You have met all three in passing: `.output` since Section 3, `all_messages()` in Section 4, `usage` as the meter Sections 15 and 16 read. This section exists so that "debug or cost-check anything" has one home.
 
 ---
 
@@ -785,7 +785,7 @@ Every model call costs input tokens, output tokens, and network latency. How man
 - Instructions and all tool schemas are resent on *every* call: a wordy docstring is paid for on every turn of every user (another reason for Section 9's docstring discipline and Section 11's short grounding).
 - The second call in tools mode carries the tool result back in, so it is bigger than the first.
 
-**Measure, do not guess.** After a run, `result.usage()` reports request and token counts; the message list shows per-request usage with `input_tokens` and `output_tokens`. Comparing the two modes on the same utterances with these numbers plus wall-clock time is the R1.5 exercise.
+**Measure, do not guess.** After a run, `result.usage` reports request and token counts; the message list shows per-request usage with `input_tokens` and `output_tokens`. Comparing the two modes on the same utterances with these numbers plus wall-clock time is the R1.5 exercise.
 
 **The levers, in order of effect:**
 
@@ -860,7 +860,7 @@ The docs' finer retry splits (`retries={'output': 3}`, per-run overrides) and th
 
 1. **Level climber**: one script per Part 1 section, each printing `all_messages()` once. Concepts: Sections 3–13.
 2. **Both-modes amenities agent**: the same five services behind a dispatcher and behind tools, switched by `AGENT_MODE`. Concepts: Sections 6–12, the core of this tutorial.
-3. **Price check**: run the Section 15 eval table against both modes, record `usage()` and wall-clock, write up the comparison. Concepts: Sections 14–16.
+3. **Price check**: run the Section 15 eval table against both modes, record `usage` and wall-clock, write up the comparison. Concepts: Sections 14–16.
 
 **Best practices:**
 
@@ -921,7 +921,7 @@ tool schemas + output schema     ─┴──►│    MODEL     │──┐
 | `deps_type` + `deps=` + `ctx.deps` | Typed dependency injection: shape once, object per run, reach inside tools |
 | `@agent.instructions` | Instructions computed fresh per run |
 | `ModelRetry`, `@agent.output_validator` | Semantic validation: send feedback, ask the model to try again |
-| `result.all_messages()`, `result.usage()` | The transcript and the cost meter |
+| `result.all_messages()`, `result.usage` | The transcript and the cost meter |
 
 **Key number:** a tools-mode turn costs a minimum of **2 model calls** (3 with one retry); the equivalent structured-output turn costs **1** (2 with the same retry). Structure, not the model, decides the bill.
 
@@ -958,11 +958,11 @@ tool schemas + output schema     ─┴──►│    MODEL     │──┐
 | **`ToolOutput` / `NativeOutput` / `PromptedOutput`** | The three ways the output schema is delivered to the model |
 | **Message roles** (`SystemPromptPart`, `UserPromptPart`, `TextPart`, `ToolCallPart`, `ToolReturnPart`, `RetryPromptPart`) | The typed parts of `ModelRequest`/`ModelResponse` that make up a transcript |
 | **Eval** | A fixed table of inputs with expected outputs, run against the real model to produce a number |
-| **`result.output`, `result.all_messages()`, `result.usage()`** | What a run gives back: the answer, the transcript, the token/request counts |
+| **`result.output`, `result.all_messages()`, `result.usage`** | What a run gives back: the answer, the transcript, the token/request counts |
 
 ### Sources (as referenced in this tutorial)
 
-- Pydantic, "Pydantic AI documentation" (https://pydantic.dev/docs/ai/, accessed 2026-08): all API names (`Agent`, `instructions`, `output_type`, the three output modes, `@agent.tool`/`tool_plain`, `RunContext`, `deps_type`, `@agent.instructions`, `ModelRetry`, `retries`, `all_messages()`, `usage()`) and the `instructions` versus `system_prompt` recommendation.
+- Pydantic, "Pydantic AI documentation" (https://pydantic.dev/docs/ai/, accessed 2026-08): all API names (`Agent`, `instructions`, `output_type`, the three output modes, `@agent.tool`/`tool_plain`, `RunContext`, `deps_type`, `@agent.instructions`, `ModelRetry`, `retries`, `all_messages()`, `usage`) and the `instructions` versus `system_prompt` recommendation.
 - Pydantic, "Pydantic documentation" (https://docs.pydantic.dev/, accessed 2026-08): `BaseModel` validation and JSON-schema generation underlying Section 2.2.
 
 *Note: this tutorial reflects Pydantic AI as of August 2026, and several API names were marked "verify at install time" when written. Verify version-specific claims against the official documentation and the installed package before building on them.*
