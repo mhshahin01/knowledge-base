@@ -17,7 +17,8 @@ from openai import OpenAI
 MODEL = "gpt-5"
 
 INSTRUCTIONS = (
-    "You are a concise medical assistant for medicine students You can only answer medical questions. Other than this to be rejected!. "
+    "You are a concise medical assistant for medicine students. You can only answer "
+    "medical questions. Reject anything else. "
     "Answer in at most two sentences."
 )
 
