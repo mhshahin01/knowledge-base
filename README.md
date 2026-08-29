@@ -22,7 +22,8 @@ Notes on applied AI engineering, from first principles up to production systems.
 | Path | Scope |
 | --- | --- |
 | `ai/foundation/` | Core concepts: model families, tokenisation, embeddings, context windows, prompting, evaluation, and the vocabulary needed to read the rest of the field. |
-| `ai/foundation/agentic ai/` | Agentic systems: the reason/act/observe loop, agent anatomy, design patterns (ReAct, plan-and-execute, reflection, multi-agent, human-in-the-loop), failure modes, and the framework landscape. |
+| `ai/foundation/agentic-ai/` | Agentic systems: the reason/act/observe loop, agent anatomy, design patterns (ReAct, plan-and-execute, reflection, multi-agent, human-in-the-loop), failure modes, and the framework landscape. |
+| `ai/foundation/llm/` | Large language models themselves: architecture, training and fine-tuning, inference behaviour, sampling parameters, context handling, and evaluation. |
 
 ### `backend/`
 
@@ -31,7 +32,7 @@ design is settled.
 
 | Path | Scope |
 | --- | --- |
-| `backend/java/java/` | The Java language and platform itself: records, sealed types, pattern matching, virtual threads, the memory model, collections, and JVM behaviour. |
+| `backend/java/language/` | The Java language and platform itself: records, sealed types, pattern matching, virtual threads, the memory model, collections, and JVM behaviour. |
 | `backend/java/spring-boot/` | Spring Boot application concerns: dependency injection, configuration, data access, transactions, validation, security, testing, and observability wiring. |
 | `backend/python/` | Python for backend work: language features, typing, packaging and environments, async, and the web/service frameworks around it. |
 
@@ -60,7 +61,7 @@ infrastructure those decisions imply.
 | `system-design/caching/` | Cache strategies and invalidation, layer placement, hit-rate reasoning, stampede protection, and consistency trade-offs. |
 | `system-design/databases/` | Storage selection, data modelling, indexing, transactions and isolation levels, replication, partitioning, and migrations. |
 | `system-design/networking/` | The transport underneath everything: TCP/TLS, HTTP semantics and versions, DNS, timeouts, retries, and latency budgets. |
-| `system-design/Kubernetes/` | Workload scheduling and lifecycle, networking and service discovery, configuration and secrets, autoscaling, and deployment strategy. |
+| `system-design/kubernetes/` | Workload scheduling and lifecycle, networking and service discovery, configuration and secrets, autoscaling, and deployment strategy. |
 
 #### Cloud platforms
 
