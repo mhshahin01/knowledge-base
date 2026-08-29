@@ -226,6 +226,7 @@ the *consequences* of that judgment bounded, which is the only part code can own
 | `agent-multi-intents.py` | An ordered `list[Intent]` per prompt, so compound requests chain. |
 | `main.py` | CLI runner for both. No arguments replays the samples below; `--multi` selects the multi-intent router; pass a prompt to try your own. |
 | `.env` | Holds `OPENAI_API_KEY`. Git-ignored. |
+| `.env-sample` | Committed template. Copy to `.env` and set your key. |
 | `python-basics.md` | Companion note: every Python language feature the two agent files use, explained. No AI content. |
 
 If the Python itself is the unfamiliar part rather than the agent framework, read

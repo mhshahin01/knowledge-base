@@ -32,6 +32,7 @@ intent recognition.
 | `agent.py` | The agent: model selection, system prompt, and the two tools. The only file with logic. |
 | `web.py` | Serves the agent as a browser chat UI. One line: `app = agent.to_web()`. |
 | `.env` | Holds `OPENAI_API_KEY`. Git-ignored, never committed. |
+| `.env-sample` | Committed template. Copy to `.env` and set your key. |
 
 The two tools are deliberately trivial, so nothing distracts from the routing behaviour:
 
