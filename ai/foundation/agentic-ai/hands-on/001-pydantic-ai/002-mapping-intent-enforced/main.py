@@ -1,14 +1,18 @@
-"""main.py - run the enforced router from the command line.
+"""main.py - run either router from the command line.
 
-Run:   python main.py
-       python main.py "add 2 and 3"
+Run:   python main.py                       single-intent, sample prompts
+       python main.py --multi               multi-intent, sample prompts
+       python main.py --multi "add 2 and 3" multi-intent, your own prompt
 
-With no argument it replays the sample prompts from the README, so you can see
-which ones are handled and which are refused.
+The two agent files are kebab-case to match the repo convention, and a hyphen is
+not a legal Python identifier, so `import agent-multi-intents` is a syntax error.
+load_agent() sidesteps that by loading the file by path, which is all `import`
+does underneath anyway.
 """
+import importlib.util
 import sys
-
-from agent import handle, router
+from pathlib import Path
+from types import ModuleType
 
 SAMPLES = [
     "add 2 and 3",
@@ -20,15 +24,31 @@ SAMPLES = [
 ]
 
 
-def show(prompt: str) -> None:
-    intent = router.run_sync(prompt).output
+def load_agent(filename: str) -> ModuleType:
+    """Import a module from a path, so kebab-case filenames still work."""
+    path = Path(__file__).parent / filename
+    spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def show(module: ModuleType, prompt: str) -> None:
+    output = module.router.run_sync(prompt).output
+    intents = output if isinstance(output, list) else [output]
+    rendered = ", ".join(f"{type(i).__name__}{i.model_dump()}" for i in intents)
     print(f"prompt : {prompt}")
-    print(f"intent : {type(intent).__name__} {intent.model_dump()}")
-    print(f"reply  : {handle(prompt)}")
+    print(f"intent : {rendered}")
+    print(f"reply  : {module.dispatch(output)}")   # same output, no 2nd model call
     print("-" * 70)
 
 
 if __name__ == "__main__":
-    prompts = sys.argv[1:] or SAMPLES
-    for p in prompts:
-        show(p)
+    args = sys.argv[1:]
+    multi = "--multi" in args
+    prompts = [a for a in args if not a.startswith("--")] or SAMPLES
+
+    module = load_agent("agent-multi-intents.py" if multi else "agent-single-intent.py")
+    print(f"== {'multi' if multi else 'single'}-intent ==\n")
+    for prompt in prompts:
+        show(module, prompt)

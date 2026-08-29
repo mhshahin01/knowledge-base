@@ -77,11 +77,15 @@ def refusal() -> str:
     return "Sorry, I can't do that. I can: " + "; ".join(CAPABILITIES) + "."
 
 
-def handle(prompt: str) -> str:
-    """Classify with the model, then dispatch in code."""
-    intent = router.run_sync(prompt).output
+def dispatch(intent: Intent) -> str:
+    """Turn one validated intent into the reply. No model involved."""
     if isinstance(intent, AddNumbers):
         return f"{intent.a} + {intent.b} = {add_numbers(intent.a, intent.b)}"
     if isinstance(intent, WordCount):
         return f"{word_count(intent.text)} words"
     return refusal()
+
+
+def handle(prompt: str) -> str:
+    """Classify with the model once, then dispatch in code."""
+    return dispatch(router.run_sync(prompt).output)
