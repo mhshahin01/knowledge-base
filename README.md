@@ -75,6 +75,15 @@ infrastructure those decisions imply.
 The non-code half of shipping: requirements, scope, prioritisation, stakeholder communication, and
 the documentation artefacts that carry a product from idea to delivery.
 
+### `administrative/`
+
+Repository meta: the templates and process documents that govern how notes here are written,
+rather than the subject matter itself.
+
+| Path | Scope |
+| --- | --- |
+| `administrative/template/` | Reusable note templates. `tutorial-template.md` defines the house structure for long-form tutorials: Part layout, per-section rhythm, writing rules, and a pre-publish checklist. |
+
 ---
 
 ## Conventions
@@ -86,6 +95,8 @@ These keep the base searchable as it grows. They are deliberately minimal.
 - Every note opens with an `# H1` title and a one- or two-sentence summary of what question it
   answers. That summary is what makes a grep result useful.
 - Prefer a short note that is correct over a long note that is aspirational.
+- Long-form tutorials follow [`administrative/template/tutorial-template.md`](administrative/template/tutorial-template.md),
+  which carries the section structure and a pre-publish checklist.
 
 **Directories**
 - `kebab-case`, singular where the folder describes a concept, plural where it holds a set of things.
