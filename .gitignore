@@ -30,3 +30,7 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+
+# Local planning documents: working files for the AI agent(s), not for GitHub.
+PLAN-*.md
+plan-*.md
