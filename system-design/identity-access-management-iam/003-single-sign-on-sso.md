@@ -1,13 +1,14 @@
 # Single Sign-On (SSO): Complete Tutorial
 
-> Last updated: 2026-08-30 | Applicable to: the field as of August 2026
-> Difficulty: Beginner | Estimated time: 50 minutes reading (no hands-on in this part)
+> Last updated: 2026-08-31 | Applicable to: the field as of August 2026
+> Difficulty: Beginner | Estimated time: 60 minutes reading (no hands-on in this part)
 
 ## Tutorial Overview
 
 This tutorial covers **single sign-on (SSO)** from zero: what SSO is as a goal (one login, many
-applications), why organizations adopt it and what it costs them, how it works mechanically with a
-central login server, session cookies, and redirects, what federation is and how trust between
+applications), why organizations adopt it and what it costs them, the web sessions and cookies every
+login mechanism is built on, how SSO works mechanically with a central login server, session
+cookies, and redirects, what federation is and how trust between
 organizations is established, a high-level map of the protocols that deliver SSO (SAML, OAuth 2.0,
 OIDC, Kerberos), and the honest reasons SSO is hard (session mismatch, logout, blast radius). It
 closes with a decision guide for when SSO is worth it, the classic beginner pitfalls, and a
@@ -24,15 +25,17 @@ any of those later parts.
 After completing this tutorial, you will be able to:
 
 - Explain what SSO is and what it is not.
-- Describe the IdP and Service Provider roles and how the central session works.
-- Trace, step by step, what happens when a user logs into app A and then visits app B.
+- Explain what a web session and a cookie are, what each holds, and why a cookie set on one domain
+  never reaches another.
+- Describe the IdP and Service Provider roles, and trace step by step what happens when a user logs
+  into app A and then visits app B.
 - Explain federation: how one identity crosses an organizational boundary.
 - Position SAML, OAuth 2.0, OIDC, and Kerberos on one map, without protocol depth.
 - Decide when SSO is worth it, and name its costs (single point of failure, blast radius).
 
 **How to read it:** Part 1 and Part 2 are sequential and carry the concepts. Part 3 is a decision
 guide plus pitfalls; Part 4 is reference material you return to. There is deliberately no hands-on
-track here (Section 13 explains why).
+track here (Section 14 explains why).
 
 ---
 
@@ -41,23 +44,24 @@ track here (Section 13 explains why).
 - Part 1: Foundations
   - 1. What is SSO?
   - 2. Why SSO, and what it costs
-  - 3. How SSO works at a high level
-  - 4. Federation and trust
-  - 5. The protocol map (high level only)
-  - 6. Why SSO is hard (the honest part)
+  - 3. Sessions and cookies: the prerequisite
+  - 4. How SSO works at a high level
+  - 5. Federation and trust
+  - 6. The protocol map (high level only)
+  - 7. Why SSO is hard (the honest part)
 - Part 2: The Landscape (SSO protocols)
-  - 7. The map: three lanes
-  - 8. SAML: the enterprise veteran
-  - 9. OpenID Connect: the modern default
-  - 10. Kerberos: the corporate network workhorse
-  - 11. Honorable mentions
+  - 8. The map: three lanes
+  - 9. SAML: the enterprise veteran
+  - 10. OpenID Connect: the modern default
+  - 11. Kerberos: the corporate network workhorse
+  - 12. Honorable mentions
 - Part 3: Putting It Into Practice
-  - 12. How to choose: when SSO is worth it
-  - 13. A note on hands-on for this part
-  - 14. Common misconceptions and pitfalls
+  - 13. How to choose: when SSO is worth it
+  - 14. A note on hands-on for this part
+  - 15. Common misconceptions and pitfalls
 - Part 4: Reference
-  - 15. Advanced topics and learning path
-  - 16. Cheatsheet
+  - 16. Advanced topics and learning path
+  - 17. Cheatsheet
   - Appendix: Glossary and sources
 
 ---
@@ -82,10 +86,10 @@ country you visit. You prove your identity once, thoroughly, to your government'
 After that, each border guard checks the passport, not your life story. Mapping the analogy back,
 element by element:
 
-- **The passport office.** The central login service (the identity provider, Section 3), the only
+- **The passport office.** The central login service (the identity provider, Section 4), the only
   place that ever sees your password.
 - **The passport itself.** The proof of your session at the login service, in practice a cookie in
-  your browser (Section 3).
+  your browser (Section 3 explains sessions and cookies from scratch).
 - **The border guard.** Each application, which never sees your password; it only checks whether
   the login service vouches for you.
 - **The entry stamp.** The token or assertion the login service hands to each application
@@ -148,7 +152,7 @@ SSO exists because per-application passwords fail at scale, for users and for ad
 The arithmetic of the blast radius is simple and worth stating plainly: without SSO, one stolen
 password exposes the one application it belongs to. With SSO across 30 applications, one stolen SSO
 login exposes all 30. This is not an argument against SSO; it is an argument that the identity
-provider must be the best-defended system you run (MFA everywhere, Section 6), because it holds the
+provider must be the best-defended system you run (MFA everywhere, Section 7), because it holds the
 keys to everything.
 
 **Self-check:** your manager says SSO removes authentication risk. Is that right? (No: it
@@ -157,7 +161,192 @@ defend that place accordingly.)
 
 ---
 
-## 3. How SSO works at a high level
+## 3. Sessions and cookies: the prerequisite
+
+**Objective:** explain what a web session and a cookie are, what each one holds, and why a cookie
+set on one domain never reaches another.
+
+Every section after this one rests on two web mechanisms that predate SSO by decades. If "session
+cookie" is a phrase you have nodded at without being able to define, read this section slowly. If
+you can already say what `Set-Cookie` does and why `app-a.corp.example` cannot read a cookie
+belonging to `login.corp.example`, skip to Section 4.
+
+The one-sentence mental model:
+
+> The **session** is the record the server keeps about you. The **cookie** is the ticket your
+> browser carries so the server can find that record again.
+
+**Why either exists: HTTP forgets.** HTTP is **stateless**: each request arrives at the server as a
+complete stranger, carrying no memory of the request before it. Loading one page can be dozens of
+requests, and the server has no built-in way to know they came from the same person. Without
+something to bridge them, the only way to prove who you are on request 2 would be to send your
+password again, and again on request 3, and on every image and API call after that. Sessions and
+cookies exist so that something *other than your password* is what gets sent on those requests.
+
+**A real-life picture: the cloakroom.** You hand over your coat once at the counter and get a
+numbered ticket. Mapping the analogy back, element by element:
+
+- **The coat.** Your authenticated identity, established once at the counter (the login).
+- **The shelf the coat sits on, and the counter's ledger.** The **session**: the record the server
+  keeps, on its side, saying who you are and when you arrived.
+- **The numbered ticket.** The **cookie**: a small thing you carry that is not the coat, only a
+  reference to where the coat is.
+- **Showing the ticket instead of describing your coat.** Every later request presents the ticket
+  and the server looks the record up. Nobody re-checks your identity.
+- **The cloakroom honors only its own tickets.** Cookies are scoped to one domain. The cafe next
+  door will not accept this ticket, and cannot even read it.
+- **Whoever holds the ticket gets the coat.** A cookie is a **bearer** credential, exactly like the
+  tokens of Part 2: a stolen copy works as well as the original.
+- **Closing time.** Sessions expire, on two separate clocks, covered below.
+
+### Details
+
+#### The session, in detail: server-side memory with a key
+
+A **session** is a record the server creates when you log in and keeps until it expires or is
+destroyed. It has a key, the **session ID**, and a body of state. A realistic record:
+
+| Field | Example value | Why it is there |
+|---|---|---|
+| **Session ID** | `8f14e45fceea167a5a36dedd4bea2543` | The key; the only part that ever travels in the cookie |
+| **Subject** | `user_1834` | Who this session belongs to (the principal, Part 1, Section 3) |
+| **Authenticated at** | `2026-08-31T09:12:04Z` | How old the login is; drives the maximum lifetime clock |
+| **Last seen at** | `2026-08-31T09:41:55Z` | Refreshed on each request; drives the idle clock |
+| **Authentication method** | `password + totp` | Whether MFA was completed, so a sensitive action can demand more later |
+| **Expires at** | `2026-08-31T19:12:04Z` | When the server stops honoring it |
+
+Read that table twice, because the important part is what is *missing*: **none of that data is in
+your browser.** The browser holds the ID and nothing else. This is what people mean by "server-side
+state", and it is the property that makes a session revocable: delete the record, and the ticket in
+the browser instantly refers to nothing.
+
+Where the record physically lives is a real design decision, with a real cost each way:
+
+| Where the session lives | What it buys | What it costs |
+|---|---|---|
+| **One server's memory** | Fastest, no extra infrastructure | Every restart logs everyone out, and a second server cannot see the session, so it breaks the moment you scale out |
+| **A shared store** (Redis, a database table) | Every server sees every session, it survives restarts, and revocation is one delete | Another system to run, and a lookup on every request |
+| **Nowhere: packed into a signed token instead** | No lookup and no store, so it scales without shared state | You cannot revoke what you do not store: exactly the self-contained token trade-off from Part 2, Section 2 |
+
+#### The cookie, in detail: a name, a value, and a set of rules
+
+A **cookie** is a small named string that the server asks the browser to store, and that the browser
+then sends back *automatically*. It is two HTTP headers, one in each direction:
+
+```http
+# Server to browser, on the login response:
+Set-Cookie: SESSIONID=8f14e45fceea167a5a36dedd4bea2543; Domain=login.corp.example; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=1800
+
+# Browser to server, unprompted, on every later request to that domain:
+Cookie: SESSIONID=8f14e45fceea167a5a36dedd4bea2543
+```
+
+**"Automatically" is the load-bearing word.** No JavaScript runs and no application code decides:
+once the cookie is stored, the browser attaches it to every matching request, including a request
+triggered by a redirect from somewhere else entirely. That single behavior is what makes the silent
+second login of Section 4 possible, and it is also why **cross-site request forgery (CSRF)** is a
+threat at all (Part 2, Section 7): the browser sends the cookie even when an attacker's page
+provoked the request.
+
+The rules after the value are the attributes, and each one is a security decision:
+
+| Attribute | What it does | The cost of getting it wrong |
+|---|---|---|
+| **`Domain`** | Names the host the cookie is sent to | Too broad and every subdomain sees it; too narrow and your own site stops recognizing users |
+| **`Path`** | Limits it to a URL prefix | Rarely a real boundary; never treat it as a security control |
+| **`Max-Age` / `Expires`** | How long the browser keeps it | Absent means it dies when the browser closes; a long value leaves a live ticket on a shared machine |
+| **`Secure`** | Sends it only over HTTPS | Without it the cookie crosses plain HTTP, and anyone on the network path can copy it |
+| **`HttpOnly`** | Hides it from JavaScript | Without it, one **cross-site scripting (XSS)** hole hands your session to injected script |
+| **`SameSite`** | Controls whether it is sent on requests originating from other sites | `None` without care invites CSRF; `Strict` breaks legitimate redirect-back flows, SSO among them |
+
+Two facts about shape worth carrying: browsers cap a cookie near **4 KB**, and it is sent on *every*
+matching request. Both are arguments for putting a short opaque ID in the cookie rather than a fat
+token.
+
+#### The relation: the cookie carries the key, the session holds the data
+
+Put the two together and the whole mechanism is five steps:
+
+1. You submit your password. The server verifies it.
+2. The server creates the session record and generates a random session ID.
+3. The response carries `Set-Cookie: SESSIONID=<the id>`, and the browser stores it.
+4. On every later request to that domain, the browser sends `Cookie: SESSIONID=<the id>`.
+5. The server looks the record up by that ID and knows who you are, without seeing your password
+   again.
+
+There is a second design in the wild, and you will meet both: the cookie can carry a **signed
+self-contained token** instead of an ID, in which case step 5 involves no lookup at all because the
+data is inside the cookie itself. That is the opaque-versus-self-contained split of Part 2,
+Section 2, moved into a cookie. It buys statelessness and costs you revocation, exactly as it did
+there.
+
+#### The domain rule, and why SSO needs redirects at all
+
+This is the part to keep. **A cookie is sent only to the domain it was set on.** A cookie set with
+`Domain=login.corp.example` goes to `login.corp.example` and nowhere else. `app-a.corp.example`
+never receives it, cannot read it, and has no way to ask for it. Browsers enforce this; it is not a
+convention and not a setting you can talk your way around.
+
+Two consequences run through the rest of this tutorial:
+
+1. **App A cannot check your IdP session by itself.** It has no access to the IdP's cookie. The only
+   way for that cookie to be consulted is for your browser to actually visit the IdP, which is why
+   the flow in Section 4 is built out of redirects, and why the browser rather than the application
+   is the courier.
+2. **Sharing one cookie across subdomains is possible, and is not SSO.** Setting `Domain=corp.example`
+   makes the cookie reach every `*.corp.example` host, and some in-house estates use exactly that as
+   a shortcut. The costs are real: every subdomain receives the cookie on every request, including a
+   compromised one or one run by a team you do not control, and the trick does nothing whatsoever
+   across organizations or for SaaS applications living on their own domains. Real SSO redirects and
+   issues a separate proof per application precisely so that no cookie has to be shared.
+
+#### "Session cookie" means two different things
+
+The phrase is genuinely ambiguous, and both meanings are in daily use:
+
+- **A cookie that carries a session ID.** This is how this tutorial uses the term, and how most
+  people use it in conversation.
+- **A cookie with no `Expires` or `Max-Age`**, which the browser deletes when it closes. This is the
+  formal meaning in RFC 6265, where its opposite is a **persistent cookie**.
+
+An IdP session cookie is frequently both at once, which is why nobody notices the ambiguity until it
+causes an argument.
+
+#### Session lifetime: two clocks, not one
+
+Sessions almost always run two timers, and confusing them is the source of the "why was I logged
+out?" complaints in Section 7:
+
+| Clock | What it measures | What raising it costs you |
+|---|---|---|
+| **Idle timeout** | Time since the last request; every request resets it | Convenience goes up, but an abandoned browser on a shared desk stays logged in longer |
+| **Maximum (absolute) lifetime** | Time since the login itself; nothing resets it | Fewer interruptions, but a stolen session stays useful for longer and a revoked user keeps working until it fires |
+
+Concrete defaults, as of August 2026: **Keycloak 26.x** ships an SSO session idle timeout of **30
+minutes** and a maximum of **10 hours**. Verify against your own version before relying on either;
+they move between releases.
+
+### Real use cases
+
+1. *A user reports being logged out of the internal portal every lunch break.* The idle timeout is
+   30 minutes and lunch is longer. Nothing is broken: the two clocks above name the setting to
+   change, and the trade-off you accept by changing it.
+2. *A security review asks you to log a compromised user out everywhere, immediately.* If sessions
+   live in a shared store, that is one delete per record. If the design packed everything into
+   signed cookies, there is no record to delete, which is the revocation problem you meet again in
+   Section 7.
+3. *A team moves the login form to `app-a.corp.example` and users stop being recognized on
+   `www.corp.example`.* The `Domain` attribute is the entire explanation: the cookie was set on a
+   host that the other host never sends to.
+
+**Self-check:** you log into the IdP, then open developer tools on `app-a.corp.example` and look for
+the IdP's session cookie. It is not there. Is something broken? (No: that is the domain rule working
+correctly. The cookie belongs to `login.corp.example` and is only ever sent there, which is exactly
+why app A has to redirect your browser to the IdP instead of checking for itself.)
+
+---
+
+## 4. How SSO works at a high level
 
 **Objective:** describe the IdP/SP roles and trace a login across two applications.
 
@@ -174,8 +363,9 @@ The glue between them is three mechanisms, none of them exotic:
 
 **1. The IdP session.** When the IdP verifies your password, it creates a session on its side and
 hands your browser a **session cookie** set on the IdP's own domain (say, `login.corp.example`).
-This cookie is the passport from Section 1: it is how the IdP recognizes you on later visits without
-asking for the password again.
+This is the session and cookie pair of Section 3, nothing more exotic: it is how the IdP recognizes
+you on later visits without asking for the password again. The domain rule from that section is what
+makes the rest of this section necessary, because `app-a.corp.example` can never see that cookie.
 
 **2. Redirects.** Applications never show a password form. When you arrive without a local session,
 the application redirects your whole browser to the IdP. When the IdP is satisfied, it redirects the
@@ -215,10 +405,41 @@ Now you visit app B, and this is where SSO earns its name:
 The whole second flow usually completes in under a second; users perceive it as "I was already
 logged in".
 
+Both traces are the *same* flow. Drawn as a chart, the only thing that separates the cold login from
+the silent one is a single decision node:
+
+```mermaid
+flowchart TD
+    A["You open an application<br>app-a or app-b, any SP"] --> B{"Local session<br>at the application?"}
+    B -- "yes" --> Z["You are in<br><i>the IdP is not involved at all</i>"]
+    B -- "no" --> C["Application redirects the browser to the IdP<br><i>the browser is the courier;<br>the two never talk directly</i>"]
+    C --> D{"IdP session cookie on<br>login.corp.example?"}
+    D -- "no: cold, this is the first application" --> E["IdP shows its login page<br><i>the address bar reads login.corp.example,<br>so your password goes only there</i>"]
+    E --> F["You enter your password and complete MFA"]
+    F --> G["IdP verifies you, creates the IdP session,<br>sets its session cookie"]
+    G --> H["IdP redirects the browser back to the application<br>with a signed proof issued <i>for that application</i>"]
+    D -- "yes: second application, no page appears" --> H
+    H --> I["Application validates the proof<br><i>signature, issuer, audience, expiry (Part 2, Section 5)</i>"]
+    I --> J["Application creates its OWN local session<br><i>a cookie on its own domain</i>"]
+    J --> Z
+```
+
+Three things to read off the chart:
+
+- **Node D is the whole of "single" sign-on.** Every application walks the identical path; app B's
+  login is silent purely because the cookie set at node G is already there. Remove that cookie and
+  app B gets the full login page, exactly like app A did.
+- **The left branch (E, F, G) runs once per IdP session, not once per application.** That is the
+  entire saving. Everything else on the chart runs every time, for every application.
+- **Node J is per-application and node B is checked first.** Each application ends up holding its
+  own separate session, which is why the chart converges on Z from two directions, and why logout
+  is hard (Section 7): clearing the IdP cookie at node D does nothing to the sessions already
+  created at node J.
+
 **The one insight to keep:** there is no shared session between the applications. App A and app B
 each keep their own session and never see your password. The only thing they share is the IdP, and
 the only thing that makes it "single" sign-on is the IdP's session cookie. When logout seems broken
-later (Section 6), this separation is exactly why.
+later (Section 7), this separation is exactly why.
 
 **Self-check:** app B never saw your password and never asked app A anything. How does app B know
 who you are? (From the signed proof the IdP issued for it after recognizing the IdP session cookie;
@@ -226,7 +447,7 @@ app B trusts the IdP, not app A, and not the browser's word.)
 
 ---
 
-## 4. Federation and trust
+## 5. Federation and trust
 
 **Objective:** explain how an identity crosses an organizational boundary, and what "trust" means
 concretely.
@@ -248,7 +469,7 @@ through three ingredients:
 | **Key/certificate pinning** | Because the keys are known in advance, an application can verify a proof's signature without calling the IdP on every login; this is exactly the signature verification of Part 2, Section 5 |
 | **Attribute mapping and account linking** | The two sides agree which claims travel (email, name, groups) and how an incoming identity maps to a local account: is `ada@uni-a.example` the same person as the local account `ada`? This matching step is called **account linking** |
 
-After trust is established, the login flow is the same as Section 3, with one extra hop: B's
+After trust is established, the login flow is the same as Section 4, with one extra hop: B's
 application redirects to B's own entry point, which redirects onward to A's IdP, which authenticates
 the user and sends a signed proof all the way back. B's application validates it against A's
 published keys. No password ever crosses the organizational boundary.
@@ -272,7 +493,7 @@ proof from A's IdP against keys exchanged when trust was set up.)
 
 ---
 
-## 5. The protocol map (high level only)
+## 6. The protocol map (high level only)
 
 **Objective:** place SAML, OAuth 2.0, OIDC, and Kerberos on one map and know which question each
 answers.
@@ -282,7 +503,7 @@ compete on equal terms, they answer different questions:
 
 | Protocol | Standardized | Artifact it moves | Built for | Depth in this series |
 |---|---|---|---|---|
-| **SAML 2.0** | OASIS, March 2005 | Signed XML assertion | Enterprise web SSO, browser-based | Landscape here (Section 8); positioning in Part 5 |
+| **SAML 2.0** | OASIS, March 2005 | Signed XML assertion | Enterprise web SSO, browser-based | Landscape here (Section 9); positioning in Part 5 |
 | **OAuth 2.0** | RFC 6749, October 2012 | Access tokens | Delegated *API access*, not login | Part 4 (full treatment) |
 | **OpenID Connect (OIDC)** | OpenID Foundation, February 2014 | ID token (a JWT) + access tokens | Login for the modern web and mobile | Part 5 (full treatment) |
 | **Kerberos** | RFC 4120, July 2005 | Tickets | Corporate networks: Windows domains, file shares, internal services | This section only |
@@ -298,7 +519,7 @@ SAML is already there.
 issues access tokens for that. People *do* build login experiences on it (social login leans on it),
 but OAuth alone never tells the application who the user is; that gap is precisely what OIDC fills.
 Do not say "we will do SSO with OAuth": that sentence is the series' most common misconception
-(Section 14, Pitfall 1).
+(Section 15, Pitfall 1).
 
 **OpenID Connect (OIDC).** A thin authentication layer on top of OAuth 2.0. It reuses OAuth's flows
 and adds an ID token, a JWT (you can already read one, thanks to Part 2) that states who logged in,
@@ -316,7 +537,7 @@ login you actually want is delivered by OIDC on top of OAuth, or by SAML in an e
 
 ---
 
-## 6. Why SSO is hard (the honest part)
+## 7. Why SSO is hard (the honest part)
 
 **Objective:** name the three failure modes that bite real SSO deployments, with numbers.
 
@@ -330,7 +551,7 @@ IdP, logged out of app A (local session expired), and holding an expired token i
 same moment. Neither "logged in" nor "logged out" is a single state; it is three separate timers,
 and every confusing support ticket about random logouts is a timer disagreement.
 
-**Logout does not propagate.** Remember Section 3's insight: applications keep their own local
+**Logout does not propagate.** Remember Section 4's insight: applications keep their own local
 sessions, and they never talk to each other. Clicking "log out" in app A clears app A's session. App
 B's session knows nothing about it and keeps working until its own timer dies. Protocols have
 answers (single logout mechanisms, covered properly in Part 5, Section 7), but they are fiddly and
@@ -361,7 +582,7 @@ positioning only: the deep dives on OAuth 2.0 and OIDC are Parts 4 and 5 of this
 stays at positioning depth by design. Versions and dates are stamped because this Part goes stale
 first.
 
-## 7. The map: three lanes
+## 8. The map: three lanes
 
 The field organizes into three lanes, distinguished by *where the login happens*:
 
@@ -376,7 +597,7 @@ for browser applications, often bridged by one IdP product that speaks all three
 
 ---
 
-## 8. SAML: the enterprise veteran
+## 9. SAML: the enterprise veteran
 
 **What it is.** **SAML** 2.0 (Security Assertion Markup Language, OASIS standard, March 2005) is the
 enterprise SSO protocol: the browser is redirected to the IdP, and the proof carried back is a
@@ -396,7 +617,7 @@ greenfield work defaults to OIDC instead.
 
 ---
 
-## 9. OpenID Connect: the modern default
+## 10. OpenID Connect: the modern default
 
 **What it is.** **OpenID Connect (OIDC)**, finalized by the OpenID Foundation in February 2014, is a
 thin authentication layer on top of OAuth 2.0. It reuses OAuth's flows and endpoints and adds one
@@ -416,7 +637,7 @@ the moving parts around it (PKCE requirements, logout drafts) are covered, dated
 
 ---
 
-## 10. Kerberos: the corporate network workhorse
+## 11. Kerberos: the corporate network workhorse
 
 **What it is.** **Kerberos** (RFC 4120, July 2005; the design dates to 1980s MIT) is network SSO:
 you authenticate once, typically when you sign into your Windows workstation, and the domain
@@ -434,7 +655,7 @@ and in the domain controller, whose compromise is a domain-wide event.
 
 ---
 
-## 11. Honorable mentions
+## 12. Honorable mentions
 
 One line each, so the map has no obvious holes:
 
@@ -453,7 +674,7 @@ One line each, so the map has no obvious holes:
 
 # Part 3: Putting It Into Practice
 
-## 12. How to choose: when SSO is worth it
+## 13. How to choose: when SSO is worth it
 
 **Objective:** decide, for a concrete situation, whether SSO is worth its cost.
 
@@ -468,7 +689,7 @@ and compliance drivers:
 | 5+ applications, or any compliance regime (SOC 2, ISO 27001) with offboarding SLAs | **SSO is effectively mandatory.** Auditors ask "how do you revoke a leaver's access, everywhere, today?", and per-app accounts have no good answer |
 | Customers logging into your product (B2C) | **OIDC login via a managed IdP**, designed in Part 6; do not build password auth yourself |
 | Corporate Windows network | **Kerberos is already there**; extend it, do not parallel it |
-| Workforce + many SaaS tools | **SAML federation** from your IdP to each SaaS (Section 8), OIDC for anything new you build |
+| Workforce + many SaaS tools | **SAML federation** from your IdP to each SaaS (Section 9), OIDC for anything new you build |
 
 Two practical truths:
 
@@ -476,11 +697,11 @@ Two practical truths:
    metadata trust: SAML, OIDC, and Kerberos all assemble the same five pieces differently. Learn the
    pieces once (this tutorial) and each protocol becomes "which artifact, which encoding".
 2. **The IdP becomes tier-zero infrastructure.** Budget for its availability and its MFA policy the
-   day you adopt it, not after the first outage or the first compromised account (Section 6).
+   day you adopt it, not after the first outage or the first compromised account (Section 7).
 
 ---
 
-## 13. A note on hands-on for this part
+## 14. A note on hands-on for this part
 
 There is deliberately no hands-on track in this tutorial. Every meaningful SSO exercise needs a
 running identity provider, and the series sets that up exactly once: Part 4's hands-on track brings
@@ -488,20 +709,20 @@ up the canonical local Keycloak stack (`hands-on/`, Docker, pinned version), and
 full browser-to-application login flows on it. If you want something to *do* today, do this instead:
 
 - Watch your own browser: open your company or university portal, open the developer tools' network
-  tab, and find the redirect chain from Section 3 (application to IdP, IdP back with an artifact).
+  tab, and find the redirect chain from Section 4 (application to IdP, IdP back with an artifact).
   Then open a second application and watch step 3 of the second flow: no login page, straight back.
 
 That ten-minute observation exercises Sections 1, 3, and 5 with zero setup.
 
 ---
 
-## 14. Common misconceptions and pitfalls
+## 15. Common misconceptions and pitfalls
 
 **Pitfall 1: "SSO means OAuth."**
 Symptom: the team says "we will do SSO with OAuth" and, when asked how the login actually happens,
 cannot say. Cause: OAuth 2.0 is delegated *authorization* (may this app call that API?), not
 authentication; it never tells the application who the user is. Fix: SSO is the goal; the login
-mechanism is OIDC (Part 5) on the modern web or SAML in an enterprise estate. Re-read Section 5.
+mechanism is OIDC (Part 5) on the modern web or SAML in an enterprise estate. Re-read Section 6.
 
 **Pitfall 2: assuming logout logs out everywhere.**
 Symptom: a user clicks "log out" in app A, walks away, and app B still works for the next person at
@@ -522,13 +743,13 @@ Symptom: SSO ships with password-only login "for now", multiplying the blast rad
 credential-stuffing attack across all connected applications. Cause: the rollout centralizes the
 keys without strengthening the lock. Fix: enforce MFA at the IdP before connecting the second
 application; Microsoft's figure (MFA blocks over 99.9% of automated account-compromise attacks) is
-the business case in one line. Re-read Section 6.
+the business case in one line. Re-read Section 7.
 
 ---
 
 # Part 4: Reference
 
-## 15. Advanced topics and learning path
+## 16. Advanced topics and learning path
 
 **Recommended learning order:** Part 4 of this series (OAuth 2.0, `004-oauth-2.md`) to Part 5
 (OIDC, `005-openid-connect-oidc.md`) to Part 6 (real sign-up and login flows with Keycloak,
@@ -560,7 +781,7 @@ the REFEDS and eduroam materials are the public gold standard for large-scale fe
 
 ---
 
-## 16. Cheatsheet
+## 17. Cheatsheet
 
 **Definition:** single sign-on (SSO) is an arrangement where a user authenticates once with a
 central login service, and every application that trusts that service lets the user in without
@@ -580,6 +801,10 @@ App B: validates -> local session. User typed nothing.
 
 **Roles:** identity provider (IdP) authenticates and holds the session; service provider / relying
 party (SP/RP) trusts the IdP and keeps its own local session.
+
+**Sessions and cookies in one line each:** the session is the server-side record (subject, login
+time, authentication method, expiry); the cookie is the ticket carrying its ID; a cookie is sent
+only to the domain that set it, which is the entire reason SSO is built out of redirects.
 
 **The three hard parts:** session timers disagree (Keycloak defaults: access token 5 min, SSO idle
 30 min, SSO max 10 h); logout does not propagate; one account opens every app, so MFA at the IdP is
@@ -622,7 +847,18 @@ non-negotiable.
 | **Service provider (SP)** | An application that relies on the IdP for login instead of running its own authentication |
 | **Relying party (RP)** | The OIDC-world name for the same role as service provider; the terms are interchangeable here |
 | **IdP session** | The server-side login state at the identity provider, recognized via a session cookie on the IdP's domain; the thing that makes the second login silent |
-| **Session cookie** | The browser cookie the IdP sets on its own domain after login, acting as the user's passport on later visits |
+| **Session** | The record a server keeps about a logged-in user (subject, login time, authentication method, expiry), addressed by a session ID |
+| **Session ID** | The random key identifying one session record; the only part of the session that travels to the browser |
+| **Cookie** | A small named string a server asks the browser to store, which the browser then sends back automatically on every matching request |
+| **Session cookie** | Either a cookie carrying a session ID (this tutorial's usage), or, formally in RFC 6265, a cookie with no expiry that the browser deletes when it closes |
+| **Persistent cookie** | A cookie with `Expires` or `Max-Age` set, which survives closing the browser; the formal opposite of a session cookie |
+| **Stateless (HTTP)** | The property that each HTTP request carries no memory of the one before it, which is the reason sessions and cookies exist |
+| **`Set-Cookie` / `Cookie`** | The response header a server uses to store a cookie, and the request header the browser uses to send it back |
+| **`HttpOnly`** | A cookie attribute hiding the cookie from JavaScript, so an XSS hole cannot read the session |
+| **`Secure`** | A cookie attribute restricting the cookie to HTTPS, so it never crosses the network in the clear |
+| **`SameSite`** | A cookie attribute controlling whether the cookie is sent on requests originating from other sites; the main CSRF control, and a common cause of broken redirect-back flows |
+| **Idle timeout** | Session expiry measured from the last request, reset by activity |
+| **Maximum (absolute) lifetime** | Session expiry measured from the login itself, which no amount of activity resets |
 | **Assertion** | The signed XML identity artifact SAML delivers to an application; conceptually a self-contained token in XML (Part 2, Section 2) |
 | **Federation** | SSO across organizational boundaries: organization B's application accepts identities authenticated by organization A's IdP |
 | **Trust** | The pre-established administrative relationship between IdP and application: exchanged metadata, known signing keys, agreed attributes |
@@ -643,6 +879,8 @@ non-negotiable.
 
 ### Sources (as referenced in this tutorial)
 
+- IETF, RFC 6265, "HTTP State Management Mechanism" (April 2011): cookies, their attributes, and
+  the session-versus-persistent cookie distinction of Section 3.
 - OASIS, "Security Assertion Markup Language (SAML) V2.0" (March 2005): the SAML standard and its
   XML assertions.
 - IETF, RFC 6749, "The OAuth 2.0 Authorization Framework" (October 2012): OAuth as delegated
