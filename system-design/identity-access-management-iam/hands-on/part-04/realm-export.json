@@ -1,0 +1,38 @@
+{
+  "realm": "iam-demo",
+  "enabled": true,
+  "clients": [
+    {
+      "clientId": "curl-demo",
+      "name": "curl demo client (Part 4 hands-on)",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://localhost:8088/callback"
+      ],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@iam-demo.example",
+      "firstName": "Alice",
+      "lastName": "Demo",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "alice-password",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

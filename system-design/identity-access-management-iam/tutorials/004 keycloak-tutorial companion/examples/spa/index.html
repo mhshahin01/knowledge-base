@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ACME Web Portal (SPA)</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; }
+    pre  { background: #f4f4f4; padding: 12px; overflow: auto; }
+    button { margin-right: 8px; padding: 6px 14px; }
+  </style>
+</head>
+<body>
+  <h1>ACME Web Portal</h1>
+  <div id="status">Loading...</div>
+  <p>
+    <button id="login">Login</button>
+    <button id="logout">Logout</button>
+    <button id="call">Call /orders API</button>
+    <button id="account">My account</button>
+  </p>
+  <h3>Token claims</h3><pre id="claims">-</pre>
+  <h3>API response</h3><pre id="api">-</pre>
+
+<script type="module">
+  // keycloak-js is the official browser adapter. It is an ES module, so we import it.
+  // (In a React/Vue project you would `npm install keycloak-js` and `import Keycloak from "keycloak-js"`.)
+  import Keycloak from "https://cdn.jsdelivr.net/npm/keycloak-js@26.2.4/lib/keycloak.js";
+
+  // 1. Point the adapter at your realm + client.  No secret: this is a PUBLIC client.
+  const kc = new Keycloak({
+    url: "http://localhost:8080",
+    realm: "acme",
+    clientId: "acme-spa",
+  });
+
+  // 2. Initialise. 'check-sso' = silently detect an existing session, don't force login.
+  //    PKCE (S256) is used automatically; we spell it out so you can see it.
+  const authenticated = await kc.init({ onLoad: "check-sso", pkceMethod: "S256" });
+
+  document.getElementById("status").textContent = authenticated
+    ? `Logged in as ${kc.tokenParsed.preferred_username} (department: ${kc.tokenParsed.department ?? "none"})`
+    : "Not logged in";
+  if (authenticated) {
+    document.getElementById("claims").textContent = JSON.stringify(kc.tokenParsed, null, 2);
+  }
+
+  document.getElementById("login").onclick   = () => kc.login();
+  document.getElementById("logout").onclick  = () => kc.logout({ redirectUri: location.origin });
+  document.getElementById("account").onclick = () => kc.accountManagement();
+
+  // 3. Call the backend with the access token. updateToken(30) silently refreshes the
+  //    token if it expires within 30 s - the SPA never has to think about expiry.
+  document.getElementById("call").onclick = async () => {
+    await kc.updateToken(30);
+    const r = await fetch("http://localhost:8000/orders", {
+      headers: { Authorization: "Bearer " + kc.token },
+    });
+    document.getElementById("api").textContent = r.status + " " + await r.text();
+  };
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+# docker-compose.yml  -  Keycloak + PostgreSQL + Elasticsearch + Kibana + Filebeat (+ optional Logstash)
+#
+#   docker compose up -d
+#   Keycloak : http://localhost:8080   (admin / admin)
+#   Kibana   : http://localhost:5601
+#
+# Security is DISABLED on Elasticsearch/Kibana to keep the tutorial short. Do not do this in production.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak-db-password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.3
+    command: start-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak-db-password
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      # Write a JSON log file in Elastic Common Schema (ECS) so Kibana understands it natively
+      KC_LOG: console,file
+      KC_LOG_FILE: /opt/keycloak/data/log/keycloak.log
+      KC_LOG_FILE_OUTPUT: json
+      KC_LOG_FILE_JSON_FORMAT: ecs
+      KC_LOG_SERVICE_NAME: keycloak
+      KC_LOG_SERVICE_ENVIRONMENT: dev
+      # Successful user events (LOGIN, LOGOUT, ...) are DEBUG by default -> raise them to INFO
+      KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL: info
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    volumes:
+      - kclogs:/opt/keycloak/data/log        # shared with Filebeat
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.2
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"        # tutorial only!
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    ports:
+      - "9200:9200"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.2
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      xpack.security.enabled: "false"
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:9.5.2
+    user: root                               # needs to read the shared log volume
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - kclogs:/var/log/keycloak:ro          # same volume Keycloak writes to
+      - fbdata:/usr/share/filebeat/data      # remembers what it already shipped
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  # ---- OPTIONAL: Logstash, only if you want to parse the event line into fields (part 12.4) ----
+  # logstash:
+  #   image: docker.elastic.co/logstash/logstash:9.5.2
+  #   volumes:
+  #     - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+  #   environment:
+  #     LS_JAVA_OPTS: -Xms512m -Xmx512m
+  #   ports:
+  #     - "5044:5044"
+  #   depends_on:
+  #     elasticsearch:
+  #       condition: service_healthy
+
+volumes:
+  pgdata:
+  kclogs:
+  esdata:
+  fbdata:

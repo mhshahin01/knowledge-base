@@ -1,0 +1,58 @@
+# docker-compose.yml  -  Keycloak + PostgreSQL (the "real" setup, still dev-friendly)
+#
+#   docker compose up -d        # start
+#   docker compose logs -f      # watch logs
+#   docker compose down         # stop (data survives in the volume)
+#   docker compose down -v      # stop AND delete data
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: kc-postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak-db-password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.3
+    container_name: keycloak
+    command: start-dev            # dev mode: HTTP allowed, no TLS needed, caches off. NEVER in production.
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # --- first admin user (only used the FIRST time the DB is empty) ---
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      # --- database ---
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak-db-password
+      # --- observability ---
+      KC_HEALTH_ENABLED: "true"      # /health, /health/ready, /health/live  (on port 9000)
+      KC_METRICS_ENABLED: "true"     # /metrics  (Prometheus format, port 9000)
+      # --- logging: human-readable on the console, JSON file for ELK (see part 12) ---
+      KC_LOG: console,file
+      KC_LOG_FILE: /opt/keycloak/data/log/keycloak.log
+      KC_LOG_FILE_OUTPUT: json
+      KC_LOG_FILE_JSON_FORMAT: ecs
+      # log every successful user event (LOGIN, LOGOUT...) at INFO instead of DEBUG
+      KC_SPI_EVENTS_LISTENER__JBOSS_LOGGING__SUCCESS_LEVEL: info
+    ports:
+      - "8080:8080"
+      - "9000:9000"
+    volumes:
+      - kclogs:/opt/keycloak/data/log
+
+volumes:
+  pgdata:
+  kclogs:

@@ -1,0 +1,62 @@
+# filebeat.yml  -  read Keycloak's JSON log file and ship it straight to Elasticsearch
+
+filebeat.inputs:
+  - type: filestream
+    id: keycloak-logs
+    enabled: true
+    paths:
+      - /var/log/keycloak/keycloak.log*
+    parsers:
+      # Every line is one JSON object (ECS format). Lift its fields to the top level.
+      - ndjson:
+          target: ""
+          overwrite_keys: true
+          add_error_key: true
+    fields:
+      app: keycloak
+    fields_under_root: true
+
+processors:
+  # Keycloak events look like:  type="LOGIN", realmName="acme", clientId="acme-spa", username="alice", ...
+  # Only for lines from the org.keycloak.events logger, split that string into keycloak.* fields.
+  - dissect:
+      when:
+        equals:
+          log.logger: org.keycloak.events
+      tokenizer: 'type="%{type}", %{rest}'
+      field: message
+      target_prefix: keycloak.event
+      ignore_failure: true
+  - script:
+      when:
+        equals:
+          log.logger: org.keycloak.events
+      lang: javascript
+      source: >
+        function process(event) {
+          var msg = event.Get("message");
+          if (!msg) return;
+          var re = /(\w+)="([^"]*)"/g, m;
+          while ((m = re.exec(msg)) !== null) {
+            event.Put("keycloak.event." + m[1], m[2]);
+          }
+        }
+  - drop_fields:
+      fields: ["keycloak.event.rest"]
+      ignore_missing: true
+
+# ---- Choose ONE output ----------------------------------------------------------------
+
+# A) Straight to Elasticsearch (default, simplest)
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  index: "keycloak-%{+yyyy.MM.dd}"
+
+# B) Through Logstash instead (uncomment this, comment out A, and enable logstash in compose)
+# output.logstash:
+#   hosts: ["logstash:5044"]
+
+# Filebeat wants to manage index templates/ILM when you set a custom index name:
+setup.template.name: "keycloak"
+setup.template.pattern: "keycloak-*"
+setup.ilm.enabled: false
