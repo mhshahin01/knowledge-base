@@ -1,0 +1,6 @@
+{
+  "model": "example-model",
+  "temperature": 0.2,
+  "stream": false
+}
+
