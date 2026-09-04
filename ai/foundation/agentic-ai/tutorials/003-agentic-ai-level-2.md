@@ -10,12 +10,12 @@ The 002 agent was deliberately single-turn: every `run` started from an empty hi
 
 After completing this tutorial, you will be able to:
 
-- Make the agent conversational by passing `message_history` between runs, and persist a conversation across process restarts
-- Predict what replayed history costs, and choose a history-management strategy (truncation, sliding window, summarization) with numbers, not vibes
+- Make the agent **conversational** by passing `message_history` between runs, and **persist a conversation** across process restarts
+- Predict what replayed history **costs**, and choose a **history-management strategy** (truncation, sliding window, summarization) with numbers, not vibes
 - Build long-term memory across sessions as plain, honest "more context", and know exactly what it is not
-- Use caching on both sides of the call: provider prompt caching for the input prefix, exact-match response caching for repeated questions, and know when each misleads
-- Put guardrails in the loop where the model cannot talk its way around them, gate destructive tools behind human approval, and pause and resume a run
-- Stream responses and tool-call events to a UI, and survive rate limits, timeouts, and provider outages with layered resilience
+- Use caching on both sides of the call: provider prompt caching for the input prefix, exact-match response caching for **repeated questions**, and know when each misleads
+- Put **guardrails** in the loop where the model cannot talk its way around them, gate destructive tools behind human approval, and pause and resume a run
+- **Stream responses** and tool-call events to a UI, and survive rate limits, timeouts, and provider outages with layered resilience
 
 **How to read it:** Parts 1–3 are sequential within themselves: Part 1 (memory) builds one section on the previous, and Part 2 and Part 3 assume Part 1. Part 4 is decision-oriented: read it once, then return when choosing a strategy. Part 5 and the Appendix are reference; the cheatsheet is written to stand alone.
 
@@ -23,17 +23,17 @@ After completing this tutorial, you will be able to:
 
 ## Table of Contents
 
-- Part 1: Memory: Making the Agent Conversational and Persistent
+- Part 1: Memory: Making the Agent **Conversational** and Persistent
   - 1. From single turn to conversation: `message_history`
-  - 2. Keeping a conversation across restarts: serialize and resume
-  - 3. The replay tax: what memory costs
+  - 2. Keeping a conversation **across restarts**: serialize and resume
+  - 3. The replay tax: what memory **costs**
   - 4. History management: truncation, sliding window, summarization
   - 5. Long-term memory: facts across sessions
 - Part 2: Efficiency: Controlling Cost and Latency
   - 6. Caching: the provider's discount and your own
   - 7. Context budgeting in practice
 - Part 3: Robustness: Production-Grade Behavior
-  - 8. Guardrails and validation in the loop
+  - 8. **Guardrails** and validation in the loop
   - 9. Human-in-the-loop: approval gates and pause/resume
   - 10. Streaming: perceived latency, same loop
   - 11. Error handling and resilience: beyond retries
@@ -52,7 +52,7 @@ After completing this tutorial, you will be able to:
 
 ## 1. From single turn to conversation: `message_history`
 
-**Objective:** Turn the 002 agent into a conversational one by passing one extra argument, and understand exactly what that argument does.
+**Objective:** Turn the 002 agent into a conversational one by **passing one extra argument**, and understand exactly what that argument does.
 
 002 was honest about it: the MVP agent has **no memory**; every `run` starts from an empty history. That is fine for an intent classifier and broken for a chat assistant, because real users say things like "and what about tomorrow?" and "any bookings for *my* unit?".
 
@@ -70,6 +70,34 @@ result2 = agent.run_sync(
 )
 print(result2.output)
 ```
+
+**Reminder: what an `Agent` is.** From 002 §3: an agent is four parts, a model, instructions, a typed output *or* a set of tools, and a loop the framework runs for you. The constructor only *wires configuration*: nothing is sent, called, or billed until a run method executes. The parameters you will meet across this tutorial:
+
+```python
+agent = Agent(
+    'openai:gpt-...',                 # part 1: the model, named by one string
+    instructions='...',               # part 2: who the model is, sent as the system message (002 §5)
+    output_type=[str, DeferredToolRequests],  # part 3a: what a run may end with (Section 9)
+    # tools via @agent.tool           # part 3b: the alternative third part (002 §9)
+    deps_type=AppDeps,                # the toolbox shape handed to each run (002 §10)
+    history_processors=[keep_recent], # which of the past the model sees (Section 4)
+    retries=1,                        # fix-it-yourself budget for bad output (002 §12)
+)
+```
+
+Which of these must you provide, and what do you get when you omit the rest?
+
+| Parameter | Mandatory? | Default if omitted |
+|---|---|---|
+| model (positional) | **Yes** | No default: without a model there is nothing to call. (It can be named per run instead, but one of the two must exist.) |
+| `instructions` | Optional | None: the model answers as itself, with no persona, rules, or facts |
+| `output_type` | Optional | `str`: the reply is plain prose (002 §6) |
+| tools (`@agent.tool`) | Optional | None: the model can only talk, never act (002 §9) |
+| `deps_type` | Optional | None: tools and dynamic instructions receive no context object (002 §10) |
+| `history_processors` | Optional | Empty: the stored history reaches the model unmodified, full replay (Section 4) |
+| `retries` | Optional | `1`: one automatic fix-it attempt on invalid output (002 §12) |
+
+So the line above, `Agent('openai:gpt-...', instructions='You are the Admin Office assistant.')`, is the smallest useful wiring: the one mandatory parameter plus a persona, every other row of the table taking its default. Everything in this tutorial is either a new constructor keyword or a new run argument on top of it.
 
 **Reminder: what `run_sync` actually does.** It is one full agent run, blocking: it sends your messages, executes the reason → act → observe loop (tool calls included) until the model produces a final answer, and returns a result object. `run_sync` is the script-friendly wrapper around the async `run` (002 §2.3); `run_stream` (Section 10) is the same run with streaming. The parameters you will actually use:
 
@@ -99,11 +127,221 @@ Three details that matter immediately:
 - **The transcript accumulates everything.** User text, model replies, tool calls, tool returns: passing history is not a summary, it is the full case file from 001 §3, growing every turn. Section 3 prices that growth.
 - **Usage is per run.** `result.usage` meters the current run only, and each run with history is bigger than the last. Sum across runs yourself: `RunUsage` supports `+`, so `total = total + result.usage` works.
 
+**The same five-turn conversation, both ways.** Here are the two loops, differing in exactly one line, then the traces to prove what that line does:
+
+```python
+turns = [
+    'My unit is A-12.',
+    'Any bookings for my unit today?',
+    'And tomorrow?',
+    'Which amenity did I book tomorrow?',
+    'What was my unit again?',
+]
+
+# Option A (correct): accumulate the full transcript
+history = []
+for text in turns:
+    result = agent.run_sync(text, message_history=history or None)
+    history = result.all_messages()          # history + this run, every turn
+
+# Option B (broken): hand back only the latest run
+history = []
+for text in turns:
+    result = agent.run_sync(text, message_history=history or None)
+    history = result.new_messages()          # this run only: the amnesia bug
+```
+
+And a tiny tracer so you can see what the model actually receives on a given run (message *parts*, from 002 §4: user text, model text, tool calls, tool returns):
+
+```python
+def show_trace(messages, label):
+    print(f'--- {label} ---')
+    for m in messages:
+        for p in m.parts:
+            kind = type(p).__name__
+            text = getattr(p, 'content', None) or getattr(p, 'tool_name', '')
+            print(f'  {kind:16} {str(text)[:70]}')
+```
+
+**Option A**, watched turn by turn: each `all_messages()` hand-off keeps the full transcript, so the visible column only grows:
+
+| Turn | Prompt | What the model sees (the history handed in) | What is lost so far |
+|---|---|---|---|
+| 1 | "My unit is A-12." | Nothing: first run, empty history | Nothing |
+| 2 | "Any bookings for my unit today?" | Turn 1 ("My unit is A-12." → "Noted: your unit is A-12.") | Nothing |
+| 3 | "And tomorrow?" | Turns 1–2 ("My unit is A-12." → "Noted: your unit is A-12."; "Any bookings for my unit today?" → "Unit A-12 has one booking today: Swimming Pool at 18:00.") | Nothing |
+| 4 | "Which amenity did I book tomorrow?" | Turns 1–3 ("My unit is A-12." → "Noted: your unit is A-12."; "Any bookings for my unit today?" → "Unit A-12 has one booking today: Swimming Pool at 18:00."; "And tomorrow?" → "Tomorrow, unit A-12 has the Yoga Room at 07:00.") | Nothing |
+| 5 | "What was my unit again?" | Turns 1–4 ("My unit is A-12." → "Noted: your unit is A-12."; "Any bookings for my unit today?" → "Unit A-12 has one booking today: Swimming Pool at 18:00."; "And tomorrow?" → "Tomorrow, unit A-12 has the Yoga Room at 07:00."; "Which amenity did I book tomorrow?" → "You booked the Yoga Room.") | Nothing |
+
+Every exchange ever made is still visible, which is why turn 5 is trivial to answer. **Run 5 in full**, `show_trace(history, 'A: what the model sees at turn 5')`:
+
+```text
+--- A: what the model sees at turn 5 ---
+  UserPromptPart   My unit is A-12.
+  TextPart         Noted: your unit is A-12.
+  UserPromptPart   Any bookings for my unit today?
+  ToolCallPart     bookings_by_unit(unit_id='A-12')
+  ToolReturnPart   [{'amenity': 'Swimming Pool', 'time': '18:00'}]
+  TextPart         Unit A-12 has one booking today: Swimming Pool at 18:00.
+  UserPromptPart   And tomorrow?
+  ToolCallPart     bookings_by_unit(unit_id='A-12')
+  ToolReturnPart   [{'amenity': 'Yoga Room', 'time': '07:00'}]
+  TextPart         Tomorrow, unit A-12 has the Yoga Room at 07:00.
+  UserPromptPart   Which amenity did I book tomorrow?
+  TextPart         You booked the Yoga Room.
+  UserPromptPart   What was my unit again?
+```
+
+The model answers "A-12", because the whole case file is in front of it.
+
+**Option B**, watched turn by turn: each `new_messages()` hand-off keeps only the latest exchange and drops everything before it:
+
+| Turn | Prompt | What the model sees (the history handed in) | What is lost so far |
+|---|---|---|---|
+| 1 | "My unit is A-12." | Nothing: first run, empty history | Nothing |
+| 2 | "Any bookings for my unit today?" | Turn 1's exchange only ("My unit is A-12." → "Noted: your unit is A-12.") | Nothing yet |
+| 3 | "And tomorrow?" | Turn 2's exchange only ("Any bookings for my unit today?" → "Unit A-12 has one booking today: Swimming Pool at 18:00.") | Turn 1: the unit "A-12" |
+| 4 | "Which amenity did I book tomorrow?" | Turn 3's exchange only ("And tomorrow?" → "Which unit did you mean?": the first visible breakage) | Turns 1–2: the unit, today's booking |
+| 5 | "What was my unit again?" | Turn 4's exchange only ("Which amenity did I book tomorrow?" → "You booked the Yoga Room.") | Turns 1–3: the unit, both bookings |
+
+Turn 2 still works (turn 1 is still visible), which is exactly what makes this bug sneaky: the demo looks fine, and the decay starts one turn later. **Turn 3 is where it first breaks**, `show_trace(history, 'B: turn 3')`:
+
+```text
+--- B: what the model sees at turn 3 ---
+  UserPromptPart   Any bookings for my unit today?
+  ToolCallPart     bookings_by_unit(unit_id='A-12')
+  ToolReturnPart   [{'amenity': 'Swimming Pool', 'time': '18:00'}]
+  TextPart         Unit A-12 has one booking today: Swimming Pool at 18:00.
+  UserPromptPart   And tomorrow?
+```
+
+"And tomorrow?" with no unit anywhere in sight: the model must guess a unit or ask the resident to repeat it. Available: yesterday's question and its answer. Lost: the fact the whole conversation depends on.
+
+By **turn 5** the loss has compounded, `show_trace(history, 'B: turn 5')`:
+
+```text
+--- B: what the model sees at turn 5 ---
+  UserPromptPart   Which amenity did I book tomorrow?
+  TextPart         You booked the Yoga Room.
+  UserPromptPart   What was my unit again?
+```
+
+The model answers "I don't have your unit number", or guesses. Available: one exchange. Lost: turns 1 through 3, everything that gave the conversation its meaning. Each `new_messages()` hand-off resets the conversation to the previous turn alone; only Option A's accumulation makes pronouns like "my unit" and "tomorrow" resolvable. (If the two Option traces look similar to you, compare their first lines: Option A's transcript starts at turn 1, Option B's starts wherever the last hand-off left it.)
+
 And the bookkeeping distinction from 002 §5.1 becomes live here: `instructions` are agent-level and **always current**, computed fresh on every run and never replayed from history, while a `system_prompt` part frozen into an old stored conversation comes back with that history. The moment conversations outlive a process, this decides whether your prompt edits actually reach your users. (The docs add one rule for stored histories: when `message_history` is set and non-empty, no *new* system prompt is generated, since the history is assumed to carry one. Another reason to prefer `instructions`, which live outside that rule.)
 
 *Use case fit:* any chat surface. A single-turn intent classifier does not need it; the moment a user says "and what about the other one?", you do.
 
+**The comparison, concluded in plain language:** `new_messages()` is the page of the logbook written today; `all_messages()` is the whole logbook. Hand the model the logbook.
+
+| | `all_messages()` | `new_messages()` |
+|---|---|---|
+| What it returns | The history you passed in *plus* this run's messages | Only this run's messages |
+| What the model sees next turn | The whole conversation so far | Just the previous exchange |
+| Pass it every turn and... | Pronouns like "my unit" resolve (Option A) | Everything before the previous turn vanishes (Option B) |
+| Size over a long chat | Grows every turn (Section 3 prices this) | Roughly constant, at the cost of amnesia |
+| Use it for | Continuing a conversation: the correct default for chat | Appending to your own log, or a deliberate one-step handoff |
+| Get it wrong and you get... | Nothing: this is the safe choice | The amnesia bug (Pitfall 1, Section 14) |
+
 **Self-check:** After three turns, you call `run(text, message_history=result2.new_messages())`. What has the model forgotten? (Everything from run 1: `new_messages()` contains only run 2's messages, so turn one's "my unit is A-12" never arrives.)
+
+### Hands-on: run both options yourself
+
+Everything above fits in one script, run twice. The two files below live in `hands-on/003-agentic-ai-lvl-2/` and are byte-identical except for one marked line: `option-a-all-messages.py` and `option-b-new-messages.py`. Both print everything in between (the history handed in, the reply, the usage), so you watch one line of code decide whether the agent remembers. Here is the shared code, with the single differing line shown for both options:
+
+```python
+import os
+from dotenv import load_dotenv
+load_dotenv()                                  # .env holds OPENAI_API_KEY
+from pydantic_ai import Agent
+
+if os.getenv("OPENAI_API_KEY"):
+    MODEL = "openai:gpt-5"                     # real model: real conversation
+else:
+    from pydantic_ai.models.test import TestModel
+    MODEL = TestModel()                        # free fake model: mechanics still visible
+
+agent = Agent(
+    MODEL,
+    instructions=(
+        "You are the assistant of a residential compound Admin Office. "
+        "Answer briefly and factually. Today is 2026-09-02. "
+        "Use the bookings_by_unit tool for any booking question, "
+        "with day='today' or day='tomorrow' as the resident means."
+    ),
+)
+
+BOOKINGS = {                                   # fixed data, so traces are stable
+    ("A-12", "today"): [{"amenity": "Swimming Pool", "time": "18:00"}],
+    ("A-12", "tomorrow"): [{"amenity": "Yoga Room", "time": "07:00"}],
+}
+
+@agent.tool_plain
+def bookings_by_unit(unit_id: str, day: str = "today") -> list[dict]:
+    """Show all bookings for one residential unit.
+
+    Args:
+        unit_id: The unit identifier, for example A-12 or B-07.
+        day: 'today' or 'tomorrow'.
+    """
+    return BOOKINGS.get((unit_id.upper(), day), [])
+
+TURNS = [
+    "My unit is A-12.",
+    "Any bookings for my unit today?",
+    "And tomorrow?",
+    "Which amenity did I book tomorrow?",
+    "What was my unit again?",
+]
+
+def show_trace(messages, indent="  "):
+    """Print every message part: what the model actually receives."""
+    if not messages:
+        print(f"{indent}(empty)")
+    for m in messages:
+        for p in m.parts:
+            kind = type(p).__name__
+            if kind == "ToolCallPart":
+                text = f"{p.tool_name}({p.args})"
+            else:
+                text = str(getattr(p, "content", ""))[:70]
+            print(f"{indent}{kind:16} {text}")
+
+history = []
+for i, text in enumerate(TURNS, start=1):
+    print("=" * 60)
+    print(f"TURN {i}/5: {text!r}")
+    print(f"--- history handed in ({len(history)} messages) ---")
+    show_trace(history)
+    result = agent.run_sync(text, message_history=history or None)
+    print("--- reply ---")
+    print(f"  {result.output}")
+    print(f"--- usage: {result.usage}")
+    history = result.all_messages()     # Option A: accumulate the whole transcript
+    # history = result.new_messages()   # Option B: hand back only the latest run
+print("=" * 60)
+print("FINAL TRANSCRIPT (what the model would see on a turn 6):")
+show_trace(history)
+```
+
+One line carries the whole difference: Option A keeps `result.all_messages()`, Option B swaps in `result.new_messages()`. Run both:
+
+```powershell
+python option-a-all-messages.py
+python option-b-new-messages.py
+```
+
+**What you will see.** With a real key, Option A answers turn 5 with "A-12" because the whole transcript is in front of the model. Option B loses the conversation in the traces: from turn 3 on, only the previous exchange is handed in, and its final transcript holds just turn 5's exchange. One honest wrinkle, measured on a real `gpt-5` run: Option B *still* answered "What was my unit again?" correctly, because "A-12" survived inside the surviving exchange's tool-call arguments (`bookings_by_unit({"unit_id":"A-12",...})`), not in any memory. The user texts of turns 1–3 were gone; the fact hitchhiked one turn at a time inside tool parts. To see the amnesia bite in plain English, add a fact that never passes through a tool (turn 1: "I prefer email, not phone", turn 5: "How should the office contact me?"). With no key, `TestModel` fills in canned replies, but the mechanics this section is about are fully visible either way. The message counts handed in, per turn, measured on the real run:
+
+| Turn | Option A hands in | Option B hands in |
+|---|---|---|
+| 1 | 0 messages | 0 messages |
+| 2 | 2 | 2 |
+| 3 | 6 | 4 |
+| 4 | 10 | 4 |
+| 5 | 14 | 4 |
+
+Exact counts vary with how many tool calls a turn triggers (a tool-using turn adds 4 messages: user request, tool-call response, tool-return request, text response; a plain answer adds 2). The invariant the table shows: **Option A grows every turn; Option B stalls at one exchange.** Option A's growth is what Section 3 prices next. The README in the same folder has a turn-by-turn walkthrough and five follow-up experiments.
 
 ---
 
